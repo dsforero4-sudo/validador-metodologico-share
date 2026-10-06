@@ -287,4 +287,73 @@ if df_visitas is not None:
             with col_f_rep:
                 filtro_rep_sel = st.selectbox("Filtrar por Representante", options=reps_disponibles_audit, key="select_filtro_rep_audit")
                 
-            df_tabla_filtrada = df_audit_tec.copy
+            df_tabla_filtrada = df_audit_tec.copy()
+            if filtro_nivel_sel != 'Todos': df_tabla_filtrada = df_tabla_filtrada[df_tabla_filtrada['Estado_Metodologico'] == filtro_nivel_sel]
+            if filtro_rep_sel != 'Todos': df_tabla_filtrada = df_tabla_filtrada[df_tabla_filtrada[col_rep] == filtro_rep_sel]
+                
+            st.markdown(f"<span style='color: #00D26A; font-size: 13px;'>Mostrando {len(df_tabla_filtrada):,} registros filtrados.</span>", unsafe_allow_html=True)
+            
+            # Columnas completas con Comentarios, Calificaciones y Justificaciones
+            cols_tabla = [c for c in [col_rep, col_visita, col_fecha, col_med, col_com, 'Calidad_Comentario', 'Justificacion_Comentario', col_obj, 'Calidad_Objetivo', 'Justificacion_Objetivo', 'Estado_Metodologico'] if c is not None]
+            st.dataframe(df_tabla_filtrada[cols_tabla], use_container_width=True, hide_index=True)
+
+        st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
+        st.subheader("📄 Generación de Reporte Ejecutivo Gerencial con Gráficas")
+        st.markdown("<span style='color: #9AA5B1;'>Genera un informe analítico completo incrustando las visualizaciones comerciales interactivas para gerentes de distrito y línea.</span>", unsafe_allow_html=True)
+        
+        if st.button("Generar Informe Ejecutivo con Gráficas"):
+            html_chart_copia = fig_bar_copia.to_html(full_html=False, include_plotlyjs='cdn')
+            html_chart_metodo = fig_metodo.to_html(full_html=False, include_plotlyjs='cdn')
+            
+            pct_alertas = (alertas / total_v_audit * 100) if total_v_audit > 0 else 0
+            pct_sobresalientes = (sobresalientes / total_v_audit * 100) if total_v_audit > 0 else 0
+            
+            rep_resumen = df_audit_tec.groupby(col_rep).agg(Visitas=(col_visita, 'count'), Alertas=('Estado_Metodologico', lambda x: (x == '🔴 Riesgo Metodológico (Alerta)').sum()), Copia=('Es_Repetido', 'sum')).reset_index()
+            rep_resumen.columns = ['Representante', 'Visitas', 'Alertas', 'Copia']
+            rep_resumen['Pct_Riesgo'] = (rep_resumen['Alertas'] / rep_resumen['Visitas'] * 100).round(1)
+            criticos = rep_resumen.sort_values(by='Pct_Riesgo', ascending=False).head(5)
+            
+            tabla_html_rows = ""
+            for _, r in criticos.iterrows():
+                tabla_html_rows += f"<tr><td>{r['Representante']}</td><td>{r['Visitas']}</td><td>{r['Alertas']}</td><td>{r['Pct_Riesgo']}%</td></tr>"
+            
+            cabeza_html = '<html><head><meta charset="utf-8"><style>'
+            estilos_html = "body { font-family: 'Segoe UI', Arial, sans-serif; color: #2C3E50; margin: 40px; line-height: 1.6; } h1 { color: #E6007E; border-bottom: 3px solid #E6007E; padding-bottom: 8px; font-size: 24px; } h2 { color: #2D3346; margin-top: 40px; border-bottom: 1px solid #BDC3C7; padding-bottom: 5px; font-size: 18px; } .metrics-container { display: flex; justify-content: space-between; margin-bottom: 25px; } .metric-card { background: #f8f9fa; border-left: 4px solid #E6007E; padding: 15px; width: 22%; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); } .metric-title { font-size: 11px; color: #7F8C8D; text-transform: uppercase; font-weight: bold; } .metric-value { font-size: 18px; color: #2C3E50; font-weight: bold; margin-top: 5px; } table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; } th, td { border: 1px solid #DDDDDD; padding: 10px; text-align: left; font-size: 12px; } th { background-color: #2D3346; color: white; } tr:nth-child(even) { background-color: #f9f9f9; } .chart-container { margin: 30px 0; background: #1C202C; padding: 20px; border-radius: 8px; } .recommendation-box { background: #fdf2f7; border-left: 4px solid #E6007E; padding: 20px; border-radius: 4px; margin-top: 30px; }"
+            cierre_estilos = '</style></head><body>'
+            
+            cuerpo_html = '<h1>PHARMADVISOR | INFORME EJECUTIVO DE AUDITORÍA METODOLÓGICA</h1><p><b>Cliente / Cuenta:</b> {cliente} | <b>Líneas / Segmento:</b> {lineas}</p><p><b>Fecha de Emisión:</b> {fecha} | <b>Segmento:</b> Visitas a Médicos y Farmacias</p>'
+            cuerpo_html += '<h2>1. Resumen Ejecutivo del Ciclo</h2><div class="metrics-container"><div class="metric-card"><div class="metric-title">Visitas Únicas</div><div class="metric-value">{total_visitas}</div></div><div class="metric-card"><div class="metric-title">Índice de Clonación</div><div class="metric-value">{pct_clon}%</div></div><div class="metric-card"><div class="metric-title">Visitas Sobresalientes</div><div class="metric-value">{sobr_val} ({pct_sobr}%)</div></div><div class="metric-card"><div class="metric-title">Riesgo / Alertas</div><div class="metric-value">{alert_val} ({pct_alt}%)</div></div></div>'
+            cuerpo_html += '<h2>2. Hallazgos Analíticos y Visuales del Ciclo</h2><p>Las siguientes visualizaciones reflejan el comportamiento de autorrepetición de comentarios y el nivel de adopción de la técnica de ventas por representante:</p><div class="chart-container"><b>Gráfica 1</b><br>{chart1}</div><div class="chart-container"><b>Gráfica 2</b><br>{chart2}</div>'
+            cuerpo_html += '<h2>3. Representantes con Mayor Oportunidad de Acompañamiento (Top Riesgos)</h2><table><tr><th>Representante</th><th>Visitas Evaluadas</th><th>Registros en Alerta</th><th>% de Riesgo Metodológico</th></tr>{tabla_filas}</table>'
+            cuerpo_html += '<div class="recommendation-box"><h3 style="margin-top:0; color: #E6007E;">4. Recomendaciones de Acción para Gerentes de Distrito y Línea</h3><ol><li><b>Retroalimentación 1 a 1:</b> Programar sesiones de coaching con los asesores identificados con mayores índices de clonación para fomentar descripciones personalizadas de las objeciones del médico/farmacia.</li><li><b>Alineación en Objetivos SMART:</b> Reforzar en la planeación del siguiente ciclo que los objetivos redactados reflejen un comportamiento clínico o de prescripción y no tareas logísticas rutinarias.</li><li><b>Monitoreo Preventivo:</b> Utilizar este informe semanalmente para corregir desvíos antes del cierre oficial de ciclo.</li></ol></div></body></html>'
+            
+            plantilla_html = cabeza_html + estilos_html + cierre_estilos + cuerpo_html
+            
+            reporte_html = plantilla_html.format(
+                cliente=cliente_input,
+                lineas=lineas_input,
+                fecha=pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'),
+                total_visitas=f"{total_v_audit:,}",
+                pct_clon=f"{pct_copia:.1f}",
+                sobr_val=f"{sobresalientes:,}",
+                pct_sobr=f"{(sobresalientes/total_v_audit*100):.1f}" if total_v_audit > 0 else "0.0",
+                alert_val=f"{alertas:,}",
+                pct_alt=f"{pct_alertas:.1f}",
+                chart1=html_chart_copia,
+                chart2=html_chart_metodo,
+                tabla_filas=tabla_html_rows
+            )
+            
+            st.success("¡Informe ejecutivo con gráficas generado exitosamente!")
+            st.download_button(
+                label="📥 Descargar Informe Ejecutivo Completo (HTML / Imprimible a PDF)",
+                data=reporte_html,
+                file_name=f"Informe_Gerencial_Graficas_Pharmadvisor_{pd.Timestamp.now().strftime('%Y%m%d')}.html",
+                mime="text/html"
+            )
+            st.info("💡 **Impresión a PDF:** Abre el archivo descargado en tu navegador web, presiona `Ctrl + P` (o `Cmd + P` en Mac) y selecciona **'Guardar como PDF'**.")
+    else:
+        st.warning("⚠️ No se pudieron localizar las columnas 'Comentario' y/o 'Objetivo' en el archivo cargado.")
+
+else:
+    st.info("👋 **Por favor carga el archivo de visitas** en la barra lateral para visualizar el validador metodológico.")
