@@ -114,7 +114,10 @@ if df_visitas is not None:
     col_rep = buscar_columna(df_visitas, ['Representante', 'Asesor', 'Ejecutivo'])
     col_visita = buscar_columna(df_visitas, ['Cod. visita', 'Cod visita', 'Código visita', 'Codigo visita', 'Id visita', 'Visita'])
     col_fecha = buscar_columna(df_visitas, ['Fecha visita', 'Fecha', 'Date'])
-    col_med = buscar_columna(df_visitas, ['Médicos', 'Medicos', 'Cliente', 'Farmacia', 'Institución'])
+    
+    # Búsqueda ampliada para detectar el nombre del médico o farmacia/cliente
+    col_med = buscar_columna(df_visitas, ['Nombre farmacia o cliente', 'Farmacia', 'Médicos', 'Medicos', 'Cliente', 'Institución', 'Institucion', 'Nombre'])
+    
     col_obj = buscar_columna(df_visitas, ['Objetivo', 'Obj'])
     col_com = buscar_columna(df_visitas, ['Comentario', 'Comentarios', 'Observación', 'Observacion'])
 
@@ -293,7 +296,7 @@ if df_visitas is not None:
                 
             st.markdown(f"<span style='color: #00D26A; font-size: 13px;'>Mostrando {len(df_tabla_filtrada):,} registros filtrados.</span>", unsafe_allow_html=True)
             
-            # Columnas completas con Comentarios, Calificaciones y Justificaciones
+            # Columnas organizadas incluyendo el nombre del médico/farmacia (col_med)
             cols_tabla = [c for c in [col_rep, col_visita, col_fecha, col_med, col_com, 'Calidad_Comentario', 'Justificacion_Comentario', col_obj, 'Calidad_Objetivo', 'Justificacion_Objetivo', 'Estado_Metodologico'] if c is not None]
             st.dataframe(df_tabla_filtrada[cols_tabla], use_container_width=True, hide_index=True)
 
