@@ -337,32 +337,61 @@ if df_visitas is not None:
         for _, r in criticos.iterrows():
             tabla_html_rows += f"<tr><td>{r['Representante']}</td><td>{r['Visitas']}</td><td>{r['Alertas']}</td><td>{r['Pct_Riesgo']}%</td></tr>"
         
-        cabeza_html = '<html><head><meta charset="utf-8"><style>'
-        estilos_html = "body { font-family: 'Segoe UI', Arial, sans-serif; color: #2C3E50; margin: 40px; line-height: 1.6; } h1 { color: #E6007E; border-bottom: 3px solid #E6007E; padding-bottom: 8px; font-size: 24px; } h2 { color: #2D3346; margin-top: 40px; border-bottom: 1px solid #BDC3C7; padding-bottom: 5px; font-size: 18px; } .metrics-container { display: flex; justify-content: space-between; margin-bottom: 25px; } .metric-card { background: #f8f9fa; border-left: 4px solid #E6007E; padding: 15px; width: 22%; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); } .metric-title { font-size: 11px; color: #7F8C8D; text-transform: uppercase; font-weight: bold; } .metric-value { font-size: 18px; color: #2C3E50; font-weight: bold; margin-top: 5px; } table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; } th, td { border: 1px solid #DDDDDD; padding: 10px; text-align: left; font-size: 12px; } th { background-color: #2D3346; color: white; } tr:nth-child(even) { background-color: #f9f9f9; } .chart-container { margin: 30px 0; background: #1C202C; padding: 20px; border-radius: 8px; } .recommendation-box { background: #fdf2f7; border-left: 4px solid #E6007E; padding: 20px; border-radius: 4px; margin-top: 30px; }"
-        cierre_estilos = '</style></head><body>'
-        
-        cuerpo_html = '<h1>PHARMADVISOR | INFORME EJECUTIVO DE AUDITORÍA METODOLÓGICA</h1><p><b>Cliente / Cuenta:</b> {cliente} | <b>Líneas / Segmento:</b> {lineas}</p><p><b>Fecha de Emisión:</b> {fecha} | <b>Segmento:</b> Visitas a Médicos y Farmacias</p>'
-        cuerpo_html += '<h2>1. Resumen Ejecutivo del Ciclo</h2><div class="metrics-container"><div class="metric-card"><div class="metric-title">Visitas Únicas</div><div class="metric-value">{total_visitas}</div></div><div class="metric-card"><div class="metric-title">Índice de Clonación</div><div class="metric-value">{pct_clon}%</div></div><div class="metric-card"><div class="metric-title">Visitas Sobresalientes</div><div class="metric-value">{sobr_val} ({pct_sobr}%)</div></div><div class="metric-card"><div class="metric-title">Riesgo / Alertas</div><div class="metric-value">{alert_val} ({pct_alt}%)</div></div></div>'
-        cuerpo_html += '<h2>2. Hallazgos Analíticos y Visuales del Ciclo</h2><p>Las siguientes visualizaciones reflejan el comportamiento de autorrepetición de comentarios y el nivel de adopción de la técnica de ventas por representante:</p><div class="chart-container"><b>Gráfica 1</b><br>{chart1}</div><div class="chart-container"><b>Gráfica 2</b><br>{chart2}</div>'
-        cuerpo_html += '<h2>3. Representantes con Mayor Oportunidad de Acompañamiento (Top Riesgos)</h2><table><tr><th>Representante</th><th>Visitas Evaluadas</th><th>Registros en Alerta</th><th>% de Riesgo Metodológico</th></tr>{tabla_filas}</table>'
-        cuerpo_html += '<div class="recommendation-box"><h3 style="margin-top:0; color: #E6007E;">4. Recomendaciones de Acción para Gerentes de Distrito y Línea</h3><ol><li><b>Retroalimentación 1 a 1:</b> Programar sesiones de coaching con los asesores identificados con mayores índices de clonación para fomentar descripciones personalizadas de las objeciones del médico/farmacia.</li><li><b>Alineación en Objetivos SMART:</b> Reforzar en la planeación del siguiente ciclo que los objetivos redactados reflejen un comportamiento clínico o de prescripción y no tareas logísticas rutinarias.</li><li><b>Monitoreo Preventivo:</b> Utilizar este informe semanalmente para corregir desvíos antes del cierre oficial de ciclo.</li></ol></div></body></html>'
-        
-        plantilla_html = cabeza_html + estilos_html + cierre_estilos + cuerpo_html
-        
-        reporte_html = plantilla_html.format(
-            cliente=cliente_input,
-            lineas=lineas_input,
-            fecha=pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'),
-            total_visitas=f"{total_v_audit:,}",
-            pct_clon=f"{pct_copia:.1f}",
-            sobr_val=f"{sobresalientes:,}",
-            pct_sobr=f"{(sobresalientes/total_v_audit*100):.1f}" if total_v_audit > 0 else "0.0",
-            alert_val=f"{alertas:,}",
-            pct_alt=f"{pct_alertas:.1f}",
-            chart1=html_chart_copia,
-            chart2=html_chart_metodo,
-            tabla_filas=tabla_html_rows
-        )
+        # Plantilla HTML con reemplazo seguro mediante variables directas para evitar KeyError con las llaves de CSS
+        reporte_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #2C3E50; margin: 40px; line-height: 1.6; }}
+h1 {{ color: #E6007E; border-bottom: 3px solid #E6007E; padding-bottom: 8px; font-size: 24px; }}
+h2 {{ color: #2D3346; margin-top: 40px; border-bottom: 1px solid #BDC3C7; padding-bottom: 5px; font-size: 18px; }}
+.metrics-container {{ display: flex; justify-content: space-between; margin-bottom: 25px; }}
+.metric-card {{ background: #f8f9fa; border-left: 4px solid #E6007E; padding: 15px; width: 22%; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+.metric-title {{ font-size: 11px; color: #7F8C8D; text-transform: uppercase; font-weight: bold; }}
+.metric-value {{ font-size: 18px; color: #2C3E50; font-weight: bold; margin-top: 5px; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px; }}
+th, td {{ border: 1px solid #DDDDDD; padding: 10px; text-align: left; font-size: 12px; }}
+th {{ background-color: #2D3346; color: white; }}
+tr:nth-child(even) {{ background-color: #f9f9f9; }}
+.chart-container {{ margin: 30px 0; background: #1C202C; padding: 20px; border-radius: 8px; }}
+.recommendation-box {{ background: #fdf2f7; border-left: 4px solid #E6007E; padding: 20px; border-radius: 4px; margin-top: 30px; }}
+</style>
+</head>
+<body>
+<h1>PHARMADVISOR | INFORME EJECUTIVO DE AUDITORÍA METODOLÓGICA</h1>
+<p><b>Cliente / Cuenta:</b> {cliente_input} | <b>Líneas / Segmento:</b> {lineas_input}</p>
+<p><b>Fecha de Emisión:</b> {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')} | <b>Segmento:</b> Visitas a Médicos y Farmacias</p>
+
+<h2>1. Resumen Ejecutivo del Ciclo</h2>
+<div class="metrics-container">
+    <div class="metric-card"><div class="metric-title">Visitas Únicas</div><div class="metric-value">{total_v_audit:,}</div></div>
+    <div class="metric-card"><div class="metric-title">Índice de Clonación</div><div class="metric-value">{pct_copia:.1f}%</div></div>
+    <div class="metric-card"><div class="metric-title">Visitas Sobresalientes</div><div class="metric-value">{sobresalientes:,} ({((sobresalientes/total_v_audit*100) if total_v_audit > 0 else 0):.1f}%)</div></div>
+    <div class="metric-card"><div class="metric-title">Riesgo / Alertas</div><div class="metric-value">{alertas:,} ({pct_alertas:.1f}%)</div></div>
+</div>
+
+<h2>2. Hallazgos Analíticos y Visuales del Ciclo</h2>
+<p>Las siguientes visualizaciones reflejan el comportamiento de autorrepetición de comentarios y el nivel de adopción de la técnica de ventas por representante:</p>
+<div class="chart-container"><b>Gráfica 1</b><br>{html_chart_copia}</div>
+<div class="chart-container"><b>Gráfica 2</b><br>{html_chart_metodo}</div>
+
+<h2>3. Representantes con Mayor Oportunidad de Acompañamiento (Top Riesgos)</h2>
+<table>
+    <tr><th>Representante</th><th>Visitas Evaluadas</th><th>Registros en Alerta</th><th>% de Riesgo Metodológico</th></tr>
+    {tabla_html_rows}
+</table>
+
+<div class="recommendation-box">
+    <h3 style="margin-top:0; color: #E6007E;">4. Recomendaciones de Acción para Gerentes de Distrito y Línea</h3>
+    <ol>
+        <li><b>Retroalimentación 1 a 1:</b> Programar sesiones de coaching con los asesores identificados con mayores índices de clonación para fomentar descripciones personalizadas de las objeciones del médico/farmacia.</li>
+        <li><b>Alineación en Objetivos SMART:</b> Reforzar en la planeación del siguiente ciclo que los objetivos redactados reflejen un comportamiento clínico o de prescripción y no tareas logísticas rutinarias.</li>
+        <li><b>Monitoreo Preventivo:</b> Utilizar este informe semanalmente para corregir desvíos antes del cierre oficial de ciclo.</li>
+    </ol>
+</div>
+</body>
+</html>"""
         
         st.success("¡Informe ejecutivo con gráficas generado exitosamente!")
         st.download_button(
