@@ -115,11 +115,18 @@ if df_visitas is not None:
     col_visita = buscar_columna(df_visitas, ['Cod. visita', 'Cod visita', 'Código visita', 'Codigo visita', 'Id visita', 'Visita'])
     col_fecha = buscar_columna(df_visitas, ['Fecha visita', 'Fecha', 'Date'])
     col_med = buscar_columna(df_visitas, ['Nombre farmacia o cliente', 'Farmacia', 'Médicos', 'Medicos', 'Cliente', 'Institución', 'Institucion', 'Nombre'])
-    col_obj = buscar_columna(df_visitas, ['Objetivo', 'Obj'])
+    col_obj = buscar_columna(df_visitas, ['Objetivo', 'Obj', 'Objetivos'])
     col_com = buscar_columna(df_visitas, ['Comentario', 'Comentarios', 'Observación', 'Observacion'])
 
-    if not col_visita:
-        col_visita = df_visitas.columns[0]
+    # Respaldos automáticos para garantizar que nunca falle
+    if not col_visita: col_visita = df_visitas.columns[0]
+    if not col_rep: col_rep = df_visitas.columns[0]
+    if not col_com: 
+        df_visitas['Comentario'] = '-'
+        col_com = 'Comentario'
+    if not col_obj: 
+        df_visitas['Objetivo'] = '-'
+        col_obj = 'Objetivo'
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("3. Filtros en Cascada")
@@ -142,10 +149,8 @@ if df_visitas is not None:
     
     df_unique = df_filtered.drop_duplicates(subset=[col_visita]).copy()
     
-    com_target = col_com if col_com else df_filtered.columns[-1]
-    df_unique['Comentario_Clean'] = df_unique[com_target].fillna('').astype(str).str.strip().str.lower()
-    rep_target = col_rep if col_rep else df_filtered.columns[0]
-    df_unique['Rep_Comentario_Count'] = df_unique.groupby([rep_target, 'Comentario_Clean'])[col_visita].transform('count')
+    df_unique['Comentario_Clean'] = df_unique[col_com].fillna('').astype(str).str.strip().str.lower()
+    df_unique['Rep_Comentario_Count'] = df_unique.groupby([col_rep, 'Comentario_Clean'])[col_visita].transform('count')
     
     def check_repetido_individual(row):
         com = row['Comentario_Clean']
@@ -172,7 +177,7 @@ if df_visitas is not None:
     
     st.markdown("---")
     
-    rep_copia = df_unique.groupby(rep_target).agg(Total_Visitas=(col_visita, 'count'), Comentarios_Repetidos=('Es_Repetido', lambda x: int(x.sum()))).reset_index()
+    rep_copia = df_unique.groupby(col_rep).agg(Total_Visitas=(col_visita, 'count'), Comentarios_Repetidos=('Es_Repetido', lambda x: int(x.sum()))).reset_index()
     rep_copia.columns = ['Representante', 'Total_Visitas', 'Comentarios_Repetidos']
     rep_copia['Pct_Copia'] = (rep_copia['Comentarios_Repetidos'] / rep_copia['Total_Visitas'] * 100).round(1)
     rep_copia = rep_copia.sort_values(by='Pct_Copia', ascending=True)
@@ -197,5 +202,57 @@ if df_visitas is not None:
     st.markdown("<span style='color: #9AA5B1;'>Evaluación inteligente de la Fase 2 (Comentarios) y Fase 1/3 (Objetivos) con penalización automática a Alerta ante registros con copy-paste.</span>", unsafe_allow_html=True)
     st.markdown("---")
     
-    if col_com and col_obj:
-        df_audit_tec = df_unique.copy()
+    df_audit_tec = df_unique.copy()
+    
+    df_audit_tec['Com_Text'] = df_audit_tec[col_com].fillna('').astype(str).str.strip()
+    df_audit_tec['Obj_Text'] = df_audit_tec[col_obj].fillna('').astype(str).str.strip()
+    
+    palabras_prohibidas_com = ['', '-', 'nan', 'none', 'nat', '0', 'ok', 'bien', 'excelente', 'sin novedad', 'atendió bien']
+    
+    def calificar_y_justificar_comentario_flexible(txt, es_rep):
+        t_low = txt.lower()
+        if t_low in palabras_prohibidas_com or len(txt) < 8:
+            return '🔴 Alerta: Vacío o Genérico', 'El comentario está vacío o usa expresiones genéricas ("bien", "ok", "sin novedad").'
+        if es_rep:
+            return '🔴 Alerta: Penalizado por Copy-Paste (Clonación)', 'El texto contiene elementos teóricos correctos, pero al estar repetido idénticamente en múltiples visitas, se invalida por falta de exploración individual genuina.'
+        palabras_alta_calidad = ['acepta', 'indiferente', 'objeción', 'objecion', 'escepticismo', 'evasivo', 'acuerdo', 'compromiso', 'diferencia', 'valor', 'claro', 'dudas', 'explica', 'explicó', 'habla', 'habló', 'revisa', 'revisó', 'conoce', 'conoció', 'prescribe', 'prescribirá']
+        if any(w in t_low for w in palabras_alta_calidad):
+            return '🟢 Alta Calidad (Técnica Aplicada)', 'El comentario evidencia de forma sólida la Fase 2 y es un registro único y personalizado.'
+        else:
+            return '🟡 Regular (Superficial / Sin Actitud Clara)', 'El texto relata la visita pero carece de profundidad y argumentación diferencial.'
+
+    palabras_actividades = ['entregar', 'visitar', 'saludar', 'llamar', 'dejar', 'muestra', 'material', 'obsequio']
+    
+    def calificar_y_justificar_objetivo(txt):
+        t_low = txt.lower()
+        if t_low in palabras_prohibidas_com or len(txt) < 8:
+            return '🔴 Alerta: Sin Objetivo Definido', 'El campo de objetivo está vacío o no especifica el comportamiento esperado.'
+        elif any(t_low.startswith(act) for act in palabras_actividades):
+            return '🔴 Alerta: Confunde Actividad con Objetivo', 'Describe una tarea logística en lugar de definir un comportamiento clínico SMART.'
+        elif any(w in t_low for w in ['iniciar', 'reiniciar', 'aumentar', 'sostener', 'mantener', 'reemplazar', 'posicionar', 'evaluar', 'prescripción', 'uso']):
+            return '🟢 Alta Calidad (Comportamental SMART)', 'El objetivo está formulado correctamente como un comportamiento prescriptivo.'
+        else:
+            return '🟡 Regular (Objetivo Poco Específico)', 'El objetivo menciona una intención pero carece de la precisión requerida.'
+
+    res_com = [calificar_y_justificar_comentario_flexible(row['Com_Text'], row['Es_Repetido']) for _, row in df_audit_tec.iterrows()]
+    df_audit_tec['Calidad_Comentario'] = [r[0] for r in res_com]
+    df_audit_tec['Justificacion_Comentario'] = [r[1] for r in res_com]
+
+    res_obj = df_audit_tec['Obj_Text'].apply(calificar_y_justificar_objetivo)
+    df_audit_tec['Calidad_Objetivo'] = [r[0] for r in res_obj]
+    df_audit_tec['Justificacion_Objetivo'] = [r[1] for r in res_obj]
+    
+    def calificacion_global(row):
+        c = row['Calidad_Comentario']
+        o = row['Calidad_Objetivo']
+        if 'Alerta' in c or 'Alerta' in o: return '🔴 Riesgo Metodológico (Alerta)'
+        elif 'Regular' in c or 'Regular' in o: return '🟡 En Proceso de Apropiación'
+        else: return '🟢 Visita Sobresaliente (Metodología Dominada)'
+
+    df_audit_tec['Estado_Metodologico'] = df_audit_tec.apply(calificacion_global, axis=1)
+    
+    total_v_audit = len(df_audit_tec)
+    sobresalientes = len(df_audit_tec[df_audit_tec['Estado_Metodologico'] == '🟢 Visita Sobresaliente (Metodología Dominada)'])
+    alertas = len(df_audit_tec[df_audit_tec['Estado_Metodologico'] == '🔴 Riesgo Metodológico (Alerta)'])
+    
+    m1, m2, m3 = st
