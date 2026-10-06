@@ -10,7 +10,7 @@ st.set_page_config(page_title="Pharmadvisor | Validador Metodológico", layout="
 # ==========================================
 # MÓDULO DE SEGURIDAD Y CONTRASEÑA
 # ==========================================
-PASSWORD_CORPORTATIVA = "Pharmadvisor2026*"  # Puedes cambiar esta contraseña por la que desees compartir con tu equipo
+PASSWORD_CORPORATIVA = "Pharmadvisor2026*"
 
 def verificar_password():
     if "password_correcta" not in st.session_state:
@@ -38,7 +38,7 @@ def verificar_password():
     with col_l2:
         input_pass = st.text_input("Ingrese la Contraseña Corporativa", type="password", key="pwd_input")
         if st.button("Iniciar Sesión", use_container_width=True):
-            if input_pass == PASSWORD_CORPORTATIVA:
+            if input_pass == PASSWORD_CORPORATIVA:
                 st.session_state["password_correcta"] = True
                 st.rerun()
             else:
@@ -49,7 +49,7 @@ if not verificar_password():
     st.stop()
 
 # ==========================================
-# APLICACIÓN PRINCIPAL (DESPUÉS DEL LOGIN)
+# APLICACIÓN PRINCIPAL
 # ==========================================
 st.markdown("""
     <style>
@@ -101,29 +101,53 @@ if source_file is not None:
         df_visitas = None
 
 if df_visitas is not None:
+    # --- FUNCIÓN INTELIGENTE DE DETECCIÓN DE COLUMNAS ---
+    def buscar_columna(df, posibles_nombres):
+        cols_lower = {c.lower().strip(): c for c in df.columns}
+        for p in posibles_nombres:
+            if p.lower().strip() in cols_lower:
+                return cols_lower[p.lower().strip()]
+        return None
+
+    col_reg = buscar_columna(df_visitas, ['Región', 'Region', 'Coordinación', 'Coordinacion'])
+    col_ciclo = buscar_columna(df_visitas, ['Ciclo', 'Periodo', 'Mes'])
+    col_lin = buscar_columna(df_visitas, ['Línea', 'Linea', 'Estrategia'])
+    col_rep = buscar_columna(df_visitas, ['Representante', 'Asesor', 'Ejecutivo'])
+    col_visita = buscar_columna(df_visitas, ['Cod. visita', 'Cod visita', 'Código visita', 'Codigo visita', 'Id visita', 'Visita'])
+    col_fecha = buscar_columna(df_visitas, ['Fecha visita', 'Fecha', 'Date'])
+    col_med = buscar_columna(df_visitas, ['Médicos', 'Medicos', 'Cliente', 'Farmacia', 'Institución'])
+    col_obj = buscar_columna(df_visitas, ['Objetivo', 'Obj'])
+    col_com = buscar_columna(df_visitas, ['Comentario', 'Comentarios', 'Observación', 'Observacion'])
+
+    # Si no encuentra el código de visita exacto, usa la primera columna como respaldo seguro
+    if not col_visita:
+        col_visita = df_visitas.columns[0]
+
     st.sidebar.markdown("---")
     st.sidebar.subheader("3. Filtros en Cascada")
     
-    regiones = sorted(df_visitas['Región'].dropna().unique()) if 'Región' in df_visitas.columns else []
+    regiones = sorted(df_visitas[col_reg].dropna().unique()) if col_reg else []
     selected_regiones = st.sidebar.multiselect("Región / Coordinación", options=regiones, default=regiones, key="filtro_reg")
-    df_f1 = df_visitas[df_visitas['Región'].isin(selected_regiones)] if regiones else df_visitas
+    df_f1 = df_visitas[df_visitas[col_reg].isin(selected_regiones)] if col_reg and selected_regiones else df_visitas
     
-    ciclos = sorted(df_f1['Ciclo'].dropna().unique()) if 'Ciclo' in df_f1.columns else []
+    ciclos = sorted(df_f1[col_ciclo].dropna().unique()) if col_ciclo else []
     selected_ciclos = st.sidebar.multiselect("Ciclo", options=ciclos, default=ciclos, key="filtro_ciclo")
-    df_f2 = df_f1[df_f1['Ciclo'].isin(selected_ciclos)] if ciclos else df_f1
+    df_f2 = df_f1[df_f1[col_ciclo].isin(selected_ciclos)] if col_ciclo and selected_ciclos else df_f1
     
-    lineas = sorted(df_f2['Línea'].dropna().unique()) if 'Línea' in df_f2.columns else []
+    lineas = sorted(df_f2[col_lin].dropna().unique()) if col_lin else []
     selected_lineas = st.sidebar.multiselect("Línea Estratégica", options=lineas, default=lineas, key="filtro_lin")
-    df_f3 = df_f2[df_f2['Línea'].isin(selected_lineas)] if lineas else df_f2
+    df_f3 = df_f2[df_f2[col_lin].isin(selected_lineas)] if col_lin and selected_lineas else df_f2
     
-    representantes = sorted(df_f3['Representante'].dropna().unique()) if 'Representante' in df_f3.columns else []
+    representantes = sorted(df_f3[col_rep].dropna().unique()) if col_rep else []
     selected_reps = st.sidebar.multiselect("Representante", options=representantes, default=representantes, key="filtro_rep")
-    df_filtered = df_f3[df_f3['Representante'].isin(selected_reps)] if representantes else df_f3
+    df_filtered = df_f3[df_f3[col_rep].isin(selected_reps)] if col_rep and selected_reps else df_f3
     
-    df_unique = df_filtered.drop_duplicates(subset=['Cod. visita']).copy()
+    df_unique = df_filtered.drop_duplicates(subset=[col_visita]).copy()
     
-    df_unique['Comentario_Clean'] = df_unique['Comentario'].fillna('').astype(str).str.strip().str.lower()
-    df_unique['Rep_Comentario_Count'] = df_unique.groupby(['Representante', 'Comentario_Clean'])['Cod. visita'].transform('count')
+    com_target = col_com if col_com else df_filtered.columns[-1]
+    df_unique['Comentario_Clean'] = df_unique[com_target].fillna('').astype(str).str.strip().str.lower()
+    rep_target = col_rep if col_rep else df_filtered.columns[0]
+    df_unique['Rep_Comentario_Count'] = df_unique.groupby([rep_target, 'Comentario_Clean'])[col_visita].transform('count')
     
     def check_repetido_individual(row):
         com = row['Comentario_Clean']
@@ -147,7 +171,8 @@ if df_visitas is not None:
     
     st.markdown("---")
     
-    rep_copia = df_unique.groupby('Representante').agg(Total_Visitas=('Cod. visita', 'count'), Comentarios_Repetidos=('Es_Repetido', lambda x: int(x.sum()))).reset_index()
+    rep_copia = df_unique.groupby(rep_target).agg(Total_Visitas=(col_visita, 'count'), Comentarios_Repetidos=('Es_Repetido', lambda x: int(x.sum()))).reset_index()
+    rep_copia.columns = ['Representante', 'Total_Visitas', 'Comentarios_Repetidos']
     rep_copia['Pct_Copia'] = (rep_copia['Comentarios_Repetidos'] / rep_copia['Total_Visitas'] * 100).round(1)
     rep_copia = rep_copia.sort_values(by='Pct_Copia', ascending=True)
     
@@ -159,7 +184,8 @@ if df_visitas is not None:
     st.plotly_chart(fig_bar_copia, use_container_width=True)
     
     with st.expander("Ver listado de visitas únicas con comentarios repetidos"):
-        st.dataframe(df_unique[df_unique['Es_Repetido'] == True][['Región', 'Representante', 'Fecha visita', 'Médicos', 'Comentario']].head(50), use_container_width=True, hide_index=True)
+        cols_ver = [c for c in [col_reg, col_rep, col_fecha, col_med, col_com] if c is not None]
+        st.dataframe(df_unique[df_unique['Es_Repetido'] == True][cols_ver].head(50), use_container_width=True, hide_index=True)
 
     st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
 
@@ -167,11 +193,11 @@ if df_visitas is not None:
     st.markdown("<span style='color: #9AA5B1;'>Evaluación inteligente de la Fase 2 (Comentarios) y Fase 1/3 (Objetivos) con penalización automática a Alerta ante registros con copy-paste.</span>", unsafe_allow_html=True)
     st.markdown("---")
     
-    if 'Comentario' in df_filtered.columns and 'Objetivo' in df_filtered.columns:
+    if col_com and col_obj:
         df_audit_tec = df_unique.copy()
         
-        df_audit_tec['Com_Text'] = df_audit_tec['Comentario'].fillna('').astype(str).str.strip()
-        df_audit_tec['Obj_Text'] = df_audit_tec['Objetivo'].fillna('').astype(str).str.strip()
+        df_audit_tec['Com_Text'] = df_audit_tec[col_com].fillna('').astype(str).str.strip()
+        df_audit_tec['Obj_Text'] = df_audit_tec[col_obj].fillna('').astype(str).str.strip()
         
         palabras_prohibidas_com = ['', '-', 'nan', 'none', 'nat', '0', 'ok', 'bien', 'excelente', 'sin novedad', 'atendió bien']
         
@@ -228,7 +254,8 @@ if df_visitas is not None:
         
         st.markdown("---")
         
-        df_rep_metodo = df_audit_tec.groupby(['Representante', 'Estado_Metodologico'], as_index=False).agg(Total=('Cod. visita', 'count'))
+        df_rep_metodo = df_audit_tec.groupby([col_rep, 'Estado_Metodologico'], as_index=False).agg(Total=(col_visita, 'count'))
+        df_rep_metodo.columns = ['Representante', 'Estado_Metodologico', 'Total']
         df_rep_totales = df_rep_metodo.groupby('Representante', as_index=False).agg(Total_Rep=('Total', 'sum'))
         df_rep_metodo = pd.merge(df_rep_metodo, df_rep_totales, on='Representante')
         df_rep_metodo['Porcentaje'] = (df_rep_metodo['Total'] / df_rep_metodo['Total_Rep'] * 100).round(1)
@@ -252,17 +279,18 @@ if df_visitas is not None:
             with col_f_niv:
                 filtro_nivel_sel = st.selectbox("Filtrar por Nivel Metodológico", options=niveles_disponibles, key="select_filtro_nivel")
                 
-            reps_disponibles_audit = ['Todos'] + sorted(df_audit_tec['Representante'].dropna().unique().tolist())
+            reps_disponibles_audit = ['Todos'] + sorted(df_audit_tec[col_rep].dropna().unique().tolist())
             with col_f_rep:
                 filtro_rep_sel = st.selectbox("Filtrar por Representante", options=reps_disponibles_audit, key="select_filtro_rep_audit")
                 
             df_tabla_filtrada = df_audit_tec.copy()
             if filtro_nivel_sel != 'Todos': df_tabla_filtrada = df_tabla_filtrada[df_tabla_filtrada['Estado_Metodologico'] == filtro_nivel_sel]
-            if filtro_rep_sel != 'Todos': df_tabla_filtrada = df_tabla_filtrada[df_tabla_filtrada['Representante'] == filtro_rep_sel]
+            if filtro_rep_sel != 'Todos': df_tabla_filtrada = df_tabla_filtrada[df_tabla_filtrada[col_rep] == filtro_rep_sel]
                 
             st.markdown(f"<span style='color: #00D26A; font-size: 13px;'>Mostrando {len(df_tabla_filtrada):,} registros filtrados.</span>", unsafe_allow_html=True)
             
-            st.dataframe(df_tabla_filtrada[['Representante', 'Cod. visita', 'Fecha visita', 'Médicos', 'Comentario', 'Calidad_Comentario', 'Justificacion_Comentario', 'Objetivo', 'Calidad_Objetivo', 'Justificacion_Objetivo', 'Estado_Metodologico']], use_container_width=True, hide_index=True)
+            cols_tabla = [c for c in [col_rep, col_visita, col_fecha, col_med, col_com, 'Calidad_Comentario', 'Justificacion_Comentario', col_obj, 'Calidad_Objetivo', 'Justificacion_Objetivo', 'Estado_Metodologico'] if c is not None]
+            st.dataframe(df_tabla_filtrada[cols_tabla], use_container_width=True, hide_index=True)
 
         st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
         st.subheader("📄 Generación de Reporte Ejecutivo Gerencial con Gráficas")
@@ -275,7 +303,8 @@ if df_visitas is not None:
             pct_alertas = (alertas / total_v_audit * 100) if total_v_audit > 0 else 0
             pct_sobresalientes = (sobresalientes / total_v_audit * 100) if total_v_audit > 0 else 0
             
-            rep_resumen = df_audit_tec.groupby('Representante').agg(Visitas=('Cod. visita', 'count'), Alertas=('Estado_Metodologico', lambda x: (x == '🔴 Riesgo Metodológico (Alerta)').sum()), Copia=('Es_Repetido', 'sum')).reset_index()
+            rep_resumen = df_audit_tec.groupby(col_rep).agg(Visitas=(col_visita, 'count'), Alertas=('Estado_Metodologico', lambda x: (x == '🔴 Riesgo Metodológico (Alerta)').sum()), Copia=('Es_Repetido', 'sum')).reset_index()
+            rep_resumen.columns = ['Representante', 'Visitas', 'Alertas', 'Copia']
             rep_resumen['Pct_Riesgo'] = (rep_resumen['Alertas'] / rep_resumen['Visitas'] * 100).round(1)
             criticos = rep_resumen.sort_values(by='Pct_Riesgo', ascending=False).head(5)
             
