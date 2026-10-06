@@ -101,7 +101,6 @@ if source_file is not None:
         df_visitas = None
 
 if df_visitas is not None:
-    # --- FUNCIÓN INTELIGENTE DE DETECCIÓN DE COLUMNAS ---
     def buscar_columna(df, posibles_nombres):
         cols_lower = {c.lower().strip(): c for c in df.columns}
         for p in posibles_nombres:
@@ -119,7 +118,6 @@ if df_visitas is not None:
     col_obj = buscar_columna(df_visitas, ['Objetivo', 'Obj'])
     col_com = buscar_columna(df_visitas, ['Comentario', 'Comentarios', 'Observación', 'Observacion'])
 
-    # Si no encuentra el código de visita exacto, usa la primera columna como respaldo seguro
     if not col_visita:
         col_visita = df_visitas.columns[0]
 
@@ -132,7 +130,7 @@ if df_visitas is not None:
     
     ciclos = sorted(df_f1[col_ciclo].dropna().unique()) if col_ciclo else []
     selected_ciclos = st.sidebar.multiselect("Ciclo", options=ciclos, default=ciclos, key="filtro_ciclo")
-    df_f2 = df_f1[df_f1[col_ciclo].isin(selected_ciclos)] if col_ciclo and selected_ciclos else df_f1
+    df_f2 = df_f1[df_f1[col_ciclo].isin(selected_ciclos)] if ciclos and selected_ciclos else df_f1
     
     lineas = sorted(df_f2[col_lin].dropna().unique()) if col_lin else []
     selected_lineas = st.sidebar.multiselect("Línea Estratégica", options=lineas, default=lineas, key="filtro_lin")
@@ -156,7 +154,10 @@ if df_visitas is not None:
 
     df_unique['Es_Repetido'] = df_unique.apply(check_repetido_individual, axis=1)
     
-    st.subheader("📋 3. Auditoría de Calidad: Índice de Autorrepetición por Representante")
+    # ==========================================
+    # GRÁFICA 1: ÍNDICE DE COPIADO POR REPRESENTANTE
+    # ==========================================
+    st.subheader("📋 Gráfica 1. Auditoría de Calidad: Índice de Autorrepetición por Representante")
     st.markdown("<span style='color: #9AA5B1;'>Evaluación estricta de cuántas veces cada representante recicla sus propios comentarios entre sus visitas.</span>", unsafe_allow_html=True)
     st.markdown("---")
     
@@ -178,7 +179,7 @@ if df_visitas is not None:
     
     altura_grafico = max(450, len(rep_copia) * 25)
     
-    fig_bar_copia = px.bar(rep_copia, x='Pct_Copia', y='Representante', text='Pct_Copia', template='plotly_dark', title="<b>Índice de Autorrepetición (%) por Representante (Copy-Paste Interno)</b>", color='Pct_Copia', color_continuous_scale=[[0.0, '#2ECC71'], [0.05, '#2ECC71'], [0.30, '#F39C12'], [0.31, '#E74C3C'], [1.0, '#C0392B']], range_color=[0, 100], orientation='h')
+    fig_bar_copia = px.bar(rep_copia, x='Pct_Copia', y='Representante', text='Pct_Copia', template='plotly_dark', title="<b>Gráfica 1: Índice de Autorrepetición (%) por Representante (Copy-Paste Interno)</b>", color='Pct_Copia', color_continuous_scale=[[0.0, '#2ECC71'], [0.05, '#2ECC71'], [0.30, '#F39C12'], [0.31, '#E74C3C'], [1.0, '#C0392B']], range_color=[0, 100], orientation='h')
     fig_bar_copia.update_traces(texttemplate='%{text}%', textposition='outside', textfont_size=11)
     fig_bar_copia.update_layout(paper_bgcolor='#1C202C', plot_bgcolor='#2D3346', height=altura_grafico, xaxis_title="Índice de Autorrepetición (%)", yaxis_title="Representante", xaxis=dict(range=[0, 115]), yaxis={'categoryorder': 'total ascending'}, margin=dict(t=50, b=50, l=150, r=20))
     st.plotly_chart(fig_bar_copia, use_container_width=True)
@@ -189,7 +190,10 @@ if df_visitas is not None:
 
     st.markdown("<hr class='section-divider'>", unsafe_allow_html=True)
 
-    st.subheader("🎓 4. Auditoría de Calidad Metodológica (Técnica de Ventas Pharmadvisor - Visitas Únicas)")
+    # ==========================================
+    # GRÁFICA 2: AUDITORÍA DE CALIDAD METODOLÓGICA
+    # ==========================================
+    st.subheader("🎓 4. Auditoría de Calidad Metodológica (Técnica de Ventas - Visitas Únicas)")
     st.markdown("<span style='color: #9AA5B1;'>Evaluación inteligente de la Fase 2 (Comentarios) y Fase 1/3 (Objetivos) con penalización automática a Alerta ante registros con copy-paste.</span>", unsafe_allow_html=True)
     st.markdown("---")
     
@@ -266,7 +270,7 @@ if df_visitas is not None:
 
         df_rep_metodo['Texto_Barra'] = df_rep_metodo.apply(formato_etiqueta, axis=1)
         
-        fig_metodo = px.bar(df_rep_metodo, x='Total', y='Representante', color='Estado_Metodologico', barmode='stack', text='Texto_Barra', template='plotly_dark', title="<b>Adopción de la Técnica de Ventas por Representante (Penalización Estricta por Copia)</b>", color_discrete_map={'🟢 Visita Sobresaliente (Metodología Dominada)': '#2ECC71', '🟡 En Proceso de Apropiación': '#F39C12', '🔴 Riesgo Metodológico (Alerta)': '#E74C3C'}, orientation='h')
+        fig_metodo = px.bar(df_rep_metodo, x='Total', y='Representante', color='Estado_Metodologico', barmode='stack', text='Texto_Barra', template='plotly_dark', title="<b>Gráfica 2: Adopción de la Técnica de Ventas por Representante (Penalización Estricta por Copia)</b>", color_discrete_map={'🟢 Visita Sobresaliente (Metodología Dominada)': '#2ECC71', '🟡 En Proceso de Apropiación': '#F39C12', '🔴 Riesgo Metodológico (Alerta)': '#E74C3C'}, orientation='h')
         fig_metodo.update_traces(textposition='inside', insidetextanchor='middle', textfont_size=11)
         fig_metodo.update_layout(paper_bgcolor='#1C202C', plot_bgcolor='#2D3346', height=max(450, len(representantes)*25), xaxis_title="Cantidad de Visitas Únicas", yaxis_title="Representante", yaxis={'categoryorder': 'total ascending'}, legend_title="Nivel Metodológico", margin=dict(t=50, b=50, l=150, r=40))
         st.plotly_chart(fig_metodo, use_container_width=True)
@@ -321,24 +325,4 @@ if df_visitas is not None:
                 total_visitas=f"{total_v_audit:,}",
                 pct_clon=f"{pct_copia:.1f}",
                 sobr_val=f"{sobresalientes:,}",
-                pct_sobr=f"{(sobresalientes/total_v_audit*100):.1f}" if total_v_audit > 0 else "0.0",
-                alert_val=f"{alertas:,}",
-                pct_alt=f"{pct_alertas:.1f}",
-                chart1=html_chart_copia,
-                chart2=html_chart_metodo,
-                tabla_filas=tabla_html_rows
-            )
-            
-            st.success("¡Informe ejecutivo con gráficas generado exitosamente!")
-            st.download_button(
-                label="📥 Descargar Informe Ejecutivo Completo (HTML / Imprimible a PDF)",
-                data=reporte_html,
-                file_name=f"Informe_Gerencial_Graficas_Pharmadvisor_{pd.Timestamp.now().strftime('%Y%m%d')}.html",
-                mime="text/html"
-            )
-            st.info("💡 **Impresión a PDF:** Abre el archivo descargado en tu navegador web, presiona `Ctrl + P` (o `Cmd + P` en Mac) y selecciona **'Guardar como PDF'**.")
-    else:
-        st.warning("⚠️ No se pudieron localizar las columnas 'Comentario' y/o 'Objetivo' en el archivo cargado.")
-
-else:
-    st.info("👋 **Por favor carga el archivo de visitas** en la barra lateral para visualizar el validador metodológico.")
+                pct_sobr=
